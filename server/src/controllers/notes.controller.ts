@@ -6,6 +6,7 @@ import mammoth from "mammoth";
 import { cloudinary } from "../config/cloudinary.js";
 import { prisma } from "../config/db.js";
 import { AuthRequest } from "../types/index.js";
+import { getRouteParam } from "../utils/request.js";
 
 const extractText = async (filePath: string, mimetype: string): Promise<string> => {
   try {
@@ -97,8 +98,11 @@ export const listNotes = async (req: AuthRequest, res: Response): Promise<void> 
 
 export const getNoteById = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const noteId = getRouteParam(req.params.id, res, "note id");
+    if (!noteId) return;
+
     const note = await prisma.note.findFirst({
-      where: { id: req.params.id, userId: req.user!.userId },
+      where: { id: noteId, userId: req.user!.userId },
     });
     if (!note) {
       res.status(404).json({ message: "Note not found" });
@@ -142,8 +146,11 @@ export const createNoteFromText = async (req: AuthRequest, res: Response): Promi
 
 export const deleteNote = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const noteId = getRouteParam(req.params.id, res, "note id");
+    if (!noteId) return;
+
     const note = await prisma.note.findFirst({
-      where: { id: req.params.id, userId: req.user!.userId },
+      where: { id: noteId, userId: req.user!.userId },
     });
     if (!note) {
       res.status(404).json({ message: "Note not found" });

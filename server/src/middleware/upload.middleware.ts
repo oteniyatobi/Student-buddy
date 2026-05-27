@@ -22,15 +22,12 @@ const noteFileFilter = (
     "application/pdf",
     "application/msword",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "image/jpeg",
-    "image/png",
-    "image/webp",
     "text/plain",
   ];
   if (allowed.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error("Unsupported file type. Upload PDF, DOCX, or image files."));
+    cb(new Error("Unsupported file type. Upload PDF, DOCX, DOC, or TXT files."));
   }
 };
 

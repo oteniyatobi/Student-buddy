@@ -1,5 +1,5 @@
 import { Response } from "express";
-import { anthropic } from "../config/anthropic.js";
+import { ollama, MODEL } from "../config/ollama.js";
 import { prisma } from "../config/db.js";
 import { AuthRequest, SummaryData, ChatMessageInput, QuizQuestion } from "../types/index.js";
 
@@ -11,26 +11,55 @@ const parseJson = <T>(text: string): T => {
   return JSON.parse(match?.[0] ?? text) as T;
 };
 
+const parseStoredJson = <T>(value: string, fallback: T): T => {
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+};
+
+const serializeSummary = (summary: { keyPoints: string }) => ({
+  ...summary,
+  keyPoints: parseStoredJson<string[]>(summary.keyPoints, []),
+});
+
+const serializeQuiz = (quiz: { questions: string }) => ({
+  ...quiz,
+  questions: parseStoredJson<QuizQuestion[]>(quiz.questions, []),
+});
+
+const getMessageText = (message: any): string => {
+  const content = message?.content;
+  if (!content) return "";
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((item) => (item && typeof item.text === "string" ? item.text : ""))
+      .join("");
+  }
+  return "";
+};
+
 export const summarize = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { noteId } = req.params;
     const note = await prisma.note.findFirst({
-      where: { id: noteId, userId: req.user!.userId },
+      where: { id: noteId as string, userId: req.user!.userId },
     });
     if (!note) { res.status(404).json({ message: "Note not found" }); return; }
-    if (!note.content) { res.status(400).json({ message: "Note has no extractable text content" }); return; }
+    if (!note.content) { res.status(400).json({ message: "Note has no content" }); return; }
 
     const existing = await prisma.summary.findFirst({
-      where: { noteId, userId: req.user!.userId },
+      where: { noteId: noteId as string, userId: req.user!.userId },
       orderBy: { createdAt: "desc" },
     });
-    if (existing) { res.json({ summary: existing }); return; }
+    if (existing) { res.json({ summary: serializeSummary(existing) }); return; }
 
-    const message = await anthropic.messages.create({
-      model: "claude-opus-4-7",
-      max_tokens: 1024,
-      system: SYSTEM_TUTOR,
+    const completion = await ollama.chat.completions.create({
+      model: MODEL,
       messages: [
+        { role: "system", content: SYSTEM_TUTOR },
         {
           role: "user",
           content: `Analyze this study material and return ONLY valid JSON with these fields:
@@ -39,48 +68,48 @@ export const summarize = async (req: AuthRequest, res: Response): Promise<void> 
 - "keyPoints": an array of exactly 6 key points as strings
 
 Content:
-${note.content.slice(0, 8000)}`,
+${note.content.slice(0, 6000)}`,
         },
       ],
     });
 
-    const text = message.content[0].type === "text" ? message.content[0].text : "";
+    const text = getMessageText(completion.choices[0].message);
     const data = parseJson<SummaryData>(text);
 
     const summary = await prisma.summary.create({
       data: {
-        noteId,
+        noteId: noteId as string,
         userId: req.user!.userId,
         shortText: data.shortText,
         detailedText: data.detailedText,
-        keyPoints: data.keyPoints,
+        keyPoints: JSON.stringify(data.keyPoints),
       },
     });
 
-    res.json({ summary });
+    res.json({ summary: serializeSummary(summary) });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Failed to generate summary" });
+    res.status(500).json({ message: "Failed to generate summary — is Ollama running?" });
   }
 };
 
 export const generateQuiz = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { noteId } = req.params;
-    const count = Math.min(Number(req.body.count) || 5, 15);
+    const count = Math.min(Number(req.body.count) || 5, 10);
 
     let contentSource = "";
-    let title = "Mixed Subjects Quiz";
+    let title = "Quiz";
     let noteRef: string | undefined;
 
     if (noteId) {
       const note = await prisma.note.findFirst({
-        where: { id: noteId, userId: req.user!.userId },
+        where: { id: noteId as string, userId: req.user!.userId },
       });
       if (!note) { res.status(404).json({ message: "Note not found" }); return; }
       contentSource = note.content || "";
       title = `Quiz: ${note.title}`;
-      noteRef = noteId;
+      noteRef = noteId as string;
     } else if (req.body.topic) {
       contentSource = `Topic: ${req.body.topic}`;
       title = `Quiz: ${req.body.topic}`;
@@ -88,22 +117,21 @@ export const generateQuiz = async (req: AuthRequest, res: Response): Promise<voi
 
     if (!contentSource) { res.status(400).json({ message: "Provide a noteId or topic" }); return; }
 
-    const message = await anthropic.messages.create({
-      model: "claude-opus-4-7",
-      max_tokens: 2048,
-      system: SYSTEM_TUTOR,
+    const completion = await ollama.chat.completions.create({
+      model: MODEL,
       messages: [
+        { role: "system", content: SYSTEM_TUTOR },
         {
           role: "user",
           content: `Generate exactly ${count} multiple-choice questions from this material. Return ONLY valid JSON with a "questions" array. Each item must have: "q" (question string), "options" (array of 4 strings), "a" (index 0-3 of the correct answer).
 
 Material:
-${contentSource.slice(0, 8000)}`,
+${contentSource.slice(0, 6000)}`,
         },
       ],
     });
 
-    const text = message.content[0].type === "text" ? message.content[0].text : "";
+    const text = getMessageText(completion.choices[0].message);
     const data = parseJson<{ questions: QuizQuestion[] }>(text);
 
     const quiz = await prisma.quiz.create({
@@ -111,14 +139,14 @@ ${contentSource.slice(0, 8000)}`,
         userId: req.user!.userId,
         noteId: noteRef ?? null,
         title,
-        questions: data.questions as object[],
+        questions: JSON.stringify(data.questions),
       },
     });
 
-    res.status(201).json({ quiz });
+    res.status(201).json({ quiz: serializeQuiz(quiz) });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Failed to generate quiz" });
+    res.status(500).json({ message: "Failed to generate quiz — is Ollama running?" });
   }
 };
 
@@ -135,14 +163,12 @@ export const chat = async (req: AuthRequest, res: Response): Promise<void> => {
       content: m.content,
     }));
 
-    const message = await anthropic.messages.create({
-      model: "claude-opus-4-7",
-      max_tokens: 800,
-      system: SYSTEM_TUTOR,
-      messages: history,
+    const completion = await ollama.chat.completions.create({
+      model: MODEL,
+      messages: [{ role: "system", content: SYSTEM_TUTOR }, ...history],
     });
 
-    const reply = message.content[0].type === "text" ? message.content[0].text : "";
+    const reply = getMessageText(completion.choices[0].message);
 
     await prisma.chatMessage.createMany({
       data: [
@@ -154,7 +180,7 @@ export const chat = async (req: AuthRequest, res: Response): Promise<void> => {
     res.json({ reply });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Failed to get AI response" });
+    res.status(500).json({ message: "Failed to get AI response — is Ollama running?" });
   }
 };
 
@@ -163,11 +189,10 @@ export const explain = async (req: AuthRequest, res: Response): Promise<void> =>
     const { concept } = req.body;
     if (!concept) { res.status(400).json({ message: "Concept is required" }); return; }
 
-    const message = await anthropic.messages.create({
-      model: "claude-opus-4-7",
-      max_tokens: 300,
-      system: SYSTEM_TUTOR,
+    const completion = await ollama.chat.completions.create({
+      model: MODEL,
       messages: [
+        { role: "system", content: SYSTEM_TUTOR },
         {
           role: "user",
           content: `Explain "${concept}" in simple terms a university student can understand. Include: a one-sentence definition, a real-world analogy, and a quick example. Keep it under 150 words.`,
@@ -175,11 +200,11 @@ export const explain = async (req: AuthRequest, res: Response): Promise<void> =>
       ],
     });
 
-    const explanation = message.content[0].type === "text" ? message.content[0].text : "";
+    const explanation = getMessageText(completion.choices[0].message);
     res.json({ explanation });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Failed to explain concept" });
+    res.status(500).json({ message: "Failed to explain concept — is Ollama running?" });
   }
 };
 

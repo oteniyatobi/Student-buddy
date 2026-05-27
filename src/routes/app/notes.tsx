@@ -45,14 +45,14 @@ function NotesUpload() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Upload notes</h1>
-        <p className="text-sm text-muted-foreground">Drop PDFs, docs or images. Your AI organizes everything automatically.</p>
+        <p className="text-sm text-muted-foreground">Drop PDFs, docs or text files. Your AI organizes everything automatically.</p>
       </div>
 
       <input
         ref={inputRef}
         type="file"
         multiple
-        accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.webp"
+        accept=".pdf,.doc,.docx,.txt"
         className="hidden"
         onChange={(e) => handleFiles(e.target.files)}
       />
@@ -73,7 +73,7 @@ function NotesUpload() {
           <UploadCloud className="h-7 w-7 text-white" />
         </motion.div>
         <h3 className="mt-4 text-lg font-semibold">Drag & drop your files here</h3>
-        <p className="mt-1 text-sm text-muted-foreground">PDF, DOCX, TXT, PNG, JPG — up to 50MB each</p>
+        <p className="mt-1 text-sm text-muted-foreground">PDF, DOCX, DOC, TXT — up to 50MB each</p>
         <button
           onClick={() => inputRef.current?.click()}
           disabled={uploadMutation.isPending}

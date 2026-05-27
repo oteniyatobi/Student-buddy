@@ -42,6 +42,8 @@ function RecordClass() {
   const animFrameRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const finalTextRef = useRef("");
+  const lastErrorRef = useRef<string | null>(null);
+  const isRecordingRef = useRef(false);
 
   useEffect(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -50,6 +52,7 @@ function RecordClass() {
   }, []);
 
   const stopAll = () => {
+    isRecordingRef.current = false;
     if (timerRef.current) clearInterval(timerRef.current);
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -112,17 +115,21 @@ function RecordClass() {
 
       recognition.onerror = (e) => {
         if (e.error !== "no-speech" && e.error !== "aborted") {
-          toast.error(`Recognition error: ${e.error}`);
+          if (lastErrorRef.current !== e.error) {
+            lastErrorRef.current = e.error;
+            toast.error(`Recognition error: ${e.error}`);
+          }
         }
       };
 
       recognition.onend = () => {
-        if (recognitionRef.current === recognition) {
+        if (recognitionRef.current === recognition && isRecordingRef.current) {
           try { recognition.start(); } catch {}
         }
       };
 
       recognition.start();
+      isRecordingRef.current = true;
       setPhase("recording");
       setFinalText("");
       setInterimText("");
@@ -137,6 +144,7 @@ function RecordClass() {
   };
 
   const stopRecording = async () => {
+    isRecordingRef.current = false;
     if (timerRef.current) clearInterval(timerRef.current);
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -153,7 +161,7 @@ function RecordClass() {
 
     const transcript = finalTextRef.current.trim();
     if (!transcript) {
-      toast.error("No speech detected. Please try again and speak clearly.");
+      toast.error("No speech detected. Speak clearly and try again.");
       setPhase("idle");
       return;
     }
@@ -182,6 +190,7 @@ function RecordClass() {
   };
 
   const reset = () => {
+    isRecordingRef.current = false;
     setPhase("idle");
     setElapsed(0);
     setFinalText("");
@@ -189,6 +198,7 @@ function RecordClass() {
     setSavedNoteId(null);
     setLevels(Array(32).fill(0));
     finalTextRef.current = "";
+    lastErrorRef.current = null;
   };
 
   const transcription = finalText;

@@ -1,16 +1,33 @@
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
+import jwt, { SignOptions } from "jsonwebtoken";
 import { prisma } from "../config/db.js";
 import { AuthRequest } from "../types/index.js";
 
-const signToken = (userId: string, email: string): string =>
-  jwt.sign({ userId, email }, process.env.JWT_SECRET!, {
-    expiresIn: process.env.JWT_EXPIRES_IN || "7d",
-  });
+const getMissingAuthConfig = (): string[] =>
+  ["DATABASE_URL", "JWT_SECRET"].filter((key) => !process.env[key]);
+
+const signToken = (userId: string, email: string): string => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error("JWT_SECRET is not configured");
+
+  const options: SignOptions = {
+    expiresIn: (process.env.JWT_EXPIRES_IN || "7d") as SignOptions["expiresIn"],
+  };
+
+  return jwt.sign({ userId, email }, secret, options);
+};
 
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
+    const missingConfig = getMissingAuthConfig();
+    if (missingConfig.length > 0) {
+      res.status(503).json({
+        message: `Server is missing required auth configuration: ${missingConfig.join(", ")}`,
+      });
+      return;
+    }
+
     const { firstName, lastName, email, password } = req.body;
     if (!firstName || !lastName || !email || !password) {
       res.status(400).json({ message: "All fields are required" });
@@ -39,6 +56,14 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
+    const missingConfig = getMissingAuthConfig();
+    if (missingConfig.length > 0) {
+      res.status(503).json({
+        message: `Server is missing required auth configuration: ${missingConfig.join(", ")}`,
+      });
+      return;
+    }
+
     const { email, password } = req.body;
     if (!email || !password) {
       res.status(400).json({ message: "Email and password are required" });

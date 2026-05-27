@@ -27,6 +27,7 @@ dist-ssr
 
 # Server uploads (temp files)
 server/uploads/
+server/prisma/dev.db*
 
 # Server build output
 server/dist/

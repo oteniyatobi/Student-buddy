@@ -1,4 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { AxiosError } from "axios";
+import { api } from "@/lib/api";
 
 export interface AuthUser {
   id: string;
@@ -7,12 +9,6 @@ export interface AuthUser {
   lastName: string;
   xp: number;
   streakDays: number;
-}
-
-interface StoredAccount {
-  email: string;
-  password: string;
-  user: AuthUser;
 }
 
 interface AuthContextValue {
@@ -28,23 +24,6 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 const LS_USER = "ss_user";
 const LS_TOKEN = "ss_token";
-const LS_ACCOUNTS = "ss_accounts";
-
-function getAccounts(): StoredAccount[] {
-  try {
-    return JSON.parse(localStorage.getItem(LS_ACCOUNTS) ?? "[]");
-  } catch {
-    return [];
-  }
-}
-
-function saveAccounts(accounts: StoredAccount[]) {
-  localStorage.setItem(LS_ACCOUNTS, JSON.stringify(accounts));
-}
-
-function makeToken(userId: string): string {
-  return btoa(`${userId}:${Date.now()}`);
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -71,29 +50,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(LS_USER, JSON.stringify(u));
   };
 
+  const authRequest = async <T,>(path: string, body: object): Promise<T> => {
+    try {
+      const { data } = await api.post<T>(path, body);
+      return data;
+    } catch (err) {
+      if (err instanceof AxiosError) {
+        throw new Error(err.response?.data?.message || err.message);
+      }
+      throw err;
+    }
+  };
+
   const login = async (email: string, password: string) => {
-    const accounts = getAccounts();
-    const found = accounts.find((a) => a.email.toLowerCase() === email.toLowerCase());
-    if (!found) throw new Error("No account found with that email");
-    if (found.password !== password) throw new Error("Incorrect password");
-    persist(makeToken(found.user.id), found.user);
+    const { token: jwt, user: userData } = await authRequest<{ token: string; user: AuthUser }>("/auth/login", { email, password });
+    persist(jwt, userData);
   };
 
   const register = async (firstName: string, lastName: string, email: string, password: string) => {
-    const accounts = getAccounts();
-    if (accounts.some((a) => a.email.toLowerCase() === email.toLowerCase())) {
-      throw new Error("Email already registered");
-    }
-    const newUser: AuthUser = {
-      id: crypto.randomUUID(),
-      email,
-      firstName,
-      lastName,
-      xp: 0,
-      streakDays: 0,
-    };
-    saveAccounts([...accounts, { email, password, user: newUser }]);
-    persist(makeToken(newUser.id), newUser);
+    const { token: jwt, user: userData } = await authRequest<{ token: string; user: AuthUser }>("/auth/register", { firstName, lastName, email, password });
+    persist(jwt, userData);
   };
 
   const logout = () => {

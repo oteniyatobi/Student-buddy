@@ -1,6 +1,7 @@
 import { Response } from "express";
 import { prisma } from "../config/db.js";
 import { AuthRequest } from "../types/index.js";
+import { getRouteParam, toBoundedInteger } from "../utils/request.js";
 
 export const listTasks = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -27,9 +28,9 @@ export const createTask = async (req: AuthRequest, res: Response): Promise<void>
       data: {
         userId: req.user!.userId,
         title,
-        day: day ?? 0,
-        hour: hour ?? 9,
-        duration: duration ?? 1,
+        day: toBoundedInteger(day, 0, 0, 6),
+        hour: toBoundedInteger(hour, 9, 0, 23),
+        duration: toBoundedInteger(duration, 1, 1, 24),
         color: color ?? "from-indigo-500 to-purple-500",
         priority: priority ?? "med",
         due,
@@ -44,8 +45,11 @@ export const createTask = async (req: AuthRequest, res: Response): Promise<void>
 
 export const updateTask = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const taskId = getRouteParam(req.params.id, res, "task id");
+    if (!taskId) return;
+
     const task = await prisma.plannerTask.findFirst({
-      where: { id: req.params.id, userId: req.user!.userId },
+      where: { id: taskId, userId: req.user!.userId },
     });
     if (!task) {
       res.status(404).json({ message: "Task not found" });
@@ -57,9 +61,9 @@ export const updateTask = async (req: AuthRequest, res: Response): Promise<void>
       where: { id: task.id },
       data: {
         ...(title !== undefined && { title }),
-        ...(day !== undefined && { day }),
-        ...(hour !== undefined && { hour }),
-        ...(duration !== undefined && { duration }),
+        ...(day !== undefined && { day: toBoundedInteger(day, task.day, 0, 6) }),
+        ...(hour !== undefined && { hour: toBoundedInteger(hour, task.hour, 0, 23) }),
+        ...(duration !== undefined && { duration: toBoundedInteger(duration, task.duration, 1, 24) }),
         ...(color !== undefined && { color }),
         ...(priority !== undefined && { priority }),
         ...(due !== undefined && { due }),
@@ -74,8 +78,11 @@ export const updateTask = async (req: AuthRequest, res: Response): Promise<void>
 
 export const deleteTask = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const taskId = getRouteParam(req.params.id, res, "task id");
+    if (!taskId) return;
+
     const task = await prisma.plannerTask.findFirst({
-      where: { id: req.params.id, userId: req.user!.userId },
+      where: { id: taskId, userId: req.user!.userId },
     });
     if (!task) {
       res.status(404).json({ message: "Task not found" });

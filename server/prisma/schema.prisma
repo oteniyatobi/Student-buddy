@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -54,7 +54,7 @@ model Summary {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   shortText    String
   detailedText String
-  keyPoints    Json
+  keyPoints    String
   createdAt    DateTime @default(now())
 }
 
@@ -65,7 +65,7 @@ model Quiz {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   title     String
-  questions Json
+  questions String
   createdAt DateTime @default(now())
 
   attempts QuizAttempt[]

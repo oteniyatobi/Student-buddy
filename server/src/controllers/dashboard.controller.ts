@@ -69,17 +69,20 @@ export const getStats = async (req: AuthRequest, res: Response): Promise<void> =
     const recentActivity = [
       ...recentNotes.map((n) => ({
         title: `Uploaded: ${n.title}`,
+        date: n.createdAt,
         time: formatRelativeTime(n.createdAt),
         icon: "Upload",
       })),
       ...recentAttempts.map((a) => ({
         title: `Quiz: ${a.quiz.title} — ${a.score}/${a.total}`,
+        date: a.completedAt,
         time: formatRelativeTime(a.completedAt),
         icon: "Trophy",
       })),
     ]
-      .sort((a, b) => (a.time > b.time ? -1 : 1))
-      .slice(0, 4);
+      .sort((a, b) => b.date.getTime() - a.date.getTime())
+      .slice(0, 4)
+      .map(({ date: _date, ...activity }) => activity);
 
     const upcomingTasks = await prisma.plannerTask.findMany({
       where: { userId },
