@@ -1,0 +1,116 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  firstName    String
+  lastName     String
+  passwordHash String
+  xp           Int       @default(0)
+  streakDays   Int       @default(0)
+  lastStudied  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  notes         Note[]
+  quizAttempts  QuizAttempt[]
+  plannerTasks  PlannerTask[]
+  chatMessages  ChatMessage[]
+  studySessions StudySession[]
+  quizzes       Quiz[]
+  summaries     Summary[]
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  filename  String
+  fileUrl   String
+  publicId  String?
+  fileType  String
+  content   String?
+  size      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  summaries Summary[]
+  quizzes   Quiz[]
+}
+
+model Summary {
+  id           String   @id @default(cuid())
+  noteId       String
+  note         Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shortText    String
+  detailedText String
+  keyPoints    Json
+  createdAt    DateTime @default(now())
+}
+
+model Quiz {
+  id        String   @id @default(cuid())
+  noteId    String?
+  note      Note?    @relation(fields: [noteId], references: [id], onDelete: SetNull)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  questions Json
+  createdAt DateTime @default(now())
+
+  attempts QuizAttempt[]
+}
+
+model QuizAttempt {
+  id          String   @id @default(cuid())
+  quizId      String
+  quiz        Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  score       Int
+  total       Int
+  completedAt DateTime @default(now())
+}
+
+model PlannerTask {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  day       Int
+  hour      Int
+  duration  Int      @default(1)
+  color     String   @default("from-indigo-500 to-purple-500")
+  priority  String   @default("med")
+  due       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String
+  content   String
+  createdAt DateTime @default(now())
+}
+
+model StudySession {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  duration   Float
+  focusScore Int
+  date       DateTime @default(now())
+}
