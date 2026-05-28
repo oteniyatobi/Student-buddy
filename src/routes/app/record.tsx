@@ -12,12 +12,6 @@ export const Route = createFileRoute("/app/record")({ component: RecordClass });
 
 type Phase = "idle" | "recording" | "saving" | "done";
 
-declare global {
-  interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
-  }
-}
 
 function formatTime(secs: number) {
   const m = Math.floor(secs / 60).toString().padStart(2, "0");
@@ -95,7 +89,7 @@ function RecordClass() {
       recognitionRef.current = recognition;
       finalTextRef.current = "";
 
-      recognition.onresult = (event) => {
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
         let interim = "";
         let newFinal = "";
         for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -113,7 +107,7 @@ function RecordClass() {
         setInterimText(interim);
       };
 
-      recognition.onerror = (e) => {
+      recognition.onerror = (e: SpeechRecognitionErrorEvent) => {
         if (e.error !== "no-speech" && e.error !== "aborted") {
           if (lastErrorRef.current !== e.error) {
             lastErrorRef.current = e.error;
@@ -379,7 +373,7 @@ function RecordClass() {
               <div className="flex flex-wrap gap-3">
                 <Link
                   to="/app/summary"
-                  state={{ noteId: savedNoteId }}
+                  state={{ noteId: savedNoteId } as Record<string, unknown>}
                   className="flex items-center gap-2 rounded-xl gradient-bg px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-primary/30 hover:opacity-90"
                 >
                   <Sparkles className="h-4 w-4" /> Generate Summary
@@ -387,7 +381,7 @@ function RecordClass() {
                 </Link>
                 <Link
                   to="/app/quiz"
-                  state={{ noteId: savedNoteId }}
+                  state={{ noteId: savedNoteId } as Record<string, unknown>}
                   className="flex items-center gap-2 rounded-xl glass px-4 py-2.5 text-sm hover:bg-accent/40"
                 >
                   <Brain className="h-4 w-4" /> Generate Quiz

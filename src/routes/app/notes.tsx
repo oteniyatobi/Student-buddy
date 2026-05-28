@@ -155,14 +155,14 @@ function NoteCard({ note, onDelete, deleting }: { note: Note; onDelete: () => vo
       <div className="mt-3 flex gap-2">
         <Link
           to="/app/summary"
-          state={{ noteId: note.id }}
+          state={{ noteId: note.id } as Record<string, unknown>}
           className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg gradient-bg px-3 py-1.5 text-xs font-medium text-white"
         >
           <Sparkles className="h-3.5 w-3.5" /> Summary
         </Link>
         <Link
           to="/app/quiz"
-          state={{ noteId: note.id }}
+          state={{ noteId: note.id } as Record<string, unknown>}
           className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg glass px-3 py-1.5 text-xs font-medium"
         >
           <Brain className="h-3.5 w-3.5" /> Quiz

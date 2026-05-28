@@ -111,23 +111,37 @@ export const generateQuiz = async (req: AuthRequest, res: Response): Promise<voi
       title = `Quiz: ${note.title}`;
       noteRef = noteId as string;
     } else if (req.body.topic) {
-      contentSource = `Topic: ${req.body.topic}`;
+      contentSource = req.body.topic;
       title = `Quiz: ${req.body.topic}`;
     }
 
     if (!contentSource) { res.status(400).json({ message: "Provide a noteId or topic" }); return; }
 
+    const isNoteBased = !!noteRef;
+    const systemPrompt = isNoteBased
+      ? "You are a quiz generator. You ONLY create questions based on the exact text provided. Never use outside knowledge. Every question must come directly from the provided text."
+      : "You are a quiz generator. Create accurate multiple-choice questions about the given topic.";
+
+    const userPrompt = isNoteBased
+      ? `Read the following text carefully. Create exactly ${count} multiple-choice questions using ONLY information found in this text. Do not add anything from outside this text.
+
+TEXT:
+"""
+${contentSource.slice(0, 6000)}
+"""
+
+Return ONLY a JSON object in this exact format, no explanation:
+{"questions":[{"q":"question text","options":["A","B","C","D"],"a":0}]}`
+      : `Create exactly ${count} multiple-choice questions about: ${contentSource}
+
+Return ONLY a JSON object in this exact format, no explanation:
+{"questions":[{"q":"question text","options":["A","B","C","D"],"a":0}]}`;
+
     const completion = await ollama.chat.completions.create({
       model: MODEL,
       messages: [
-        { role: "system", content: SYSTEM_TUTOR },
-        {
-          role: "user",
-          content: `Generate exactly ${count} multiple-choice questions from this material. Return ONLY valid JSON with a "questions" array. Each item must have: "q" (question string), "options" (array of 4 strings), "a" (index 0-3 of the correct answer).
-
-Material:
-${contentSource.slice(0, 6000)}`,
-        },
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
       ],
     });
 
