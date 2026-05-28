@@ -1,10 +1,8 @@
 import OpenAI from "openai";
 
-const ollamaHost = process.env.OLLAMA_HOST ?? "http://localhost:11434";
-
 export const ollama = new OpenAI({
-  baseURL: `${ollamaHost}/v1`,
-  apiKey: "ollama",
+  baseURL: "https://api.groq.com/openai/v1",
+  apiKey: process.env.GROQ_API_KEY ?? "",
 });
 
-export const MODEL = "qwen2.5:3b";
+export const MODEL = "llama-3.1-8b-instant";
